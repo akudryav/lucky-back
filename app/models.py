@@ -1,9 +1,8 @@
-from email.policy import default
-
 from sqlalchemy import Column, BigInteger, Integer, String, Float, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from app.database import Base
 from datetime import datetime
+
 
 class User(Base):
     __tablename__ = 'user'
@@ -13,6 +12,9 @@ class User(Base):
     username = Column(String, default=None)
     first_name = Column(String, default=None)
     last_name = Column(String, default=None)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_activity = Column(DateTime, default=datetime.utcnow)
 
     bets = relationship('PlayerBet', back_populates='user')
     payments = relationship('Payment', back_populates='user')
@@ -48,6 +50,14 @@ class PlayerBet(Base):
 class Payment(Base):
     __tablename__ = 'payments'
 
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(BigInteger, ForeignKey('user.tg_id'))
+
+    user = relationship('User', back_populates='payments')
+
+
+class Withdrawal(Base):
+    __tablename__ = 'withdrawals'
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(BigInteger, ForeignKey('user.tg_id'))
 
