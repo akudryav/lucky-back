@@ -3,7 +3,6 @@ from sqlalchemy.orm import relationship
 from app.database import Base
 from datetime import datetime
 
-
 class User(Base):
     __tablename__ = 'user'
 
@@ -18,7 +17,7 @@ class User(Base):
 
     bets = relationship('PlayerBet', back_populates='user')
     payments = relationship('Payment', back_populates='user')
-
+    withdrawals = relationship('Withdrawal', back_populates='user')
 
 class Game(Base):
     __tablename__ = 'game'
@@ -33,7 +32,6 @@ class Game(Base):
 
     bets = relationship('PlayerBet', back_populates='game')
 
-
 class PlayerBet(Base):
     __tablename__ = 'player_bets'
 
@@ -46,7 +44,6 @@ class PlayerBet(Base):
     user = relationship('User', back_populates='bets')
     game = relationship('Game', back_populates='bets')
 
-
 class Payment(Base):
     __tablename__ = 'payments'
 
@@ -55,14 +52,12 @@ class Payment(Base):
 
     user = relationship('User', back_populates='payments')
 
-
 class Withdrawal(Base):
     __tablename__ = 'withdrawals'
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(BigInteger, ForeignKey('user.tg_id'))
 
-    user = relationship('User', back_populates='payments')
-
+    user = relationship('User', back_populates='withdrawals')
 
 class CrashSettings(Base):
     __tablename__ = 'crash_settings'

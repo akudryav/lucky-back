@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.sql.functions import current_user
 
 from bot.bot import bot
-from web.auth import verify_token, auth_user, verify_token_with_bets
+from web.auth import verify_token, auth_user, verify_token_with_bets, verify_token_with_withdrawals, verify_token_with_payments
 from app.config import settings
 from app.schemas import *
 
@@ -58,7 +58,7 @@ async def get_bet_history(current_user: str = Depends(verify_token_with_bets)):
     return user_bet_history
 
 @router.get("/payment_history", response_model=UserPaymentHistory)
-async def get_payment_history(current_user: str = Depends(verify_token_with_bets)):
+async def get_payment_history(current_user: str = Depends(verify_token_with_payments)):
     payments = current_user.payments
 
     user_payment_history = UserPaymentHistory(
@@ -72,6 +72,23 @@ async def get_payment_history(current_user: str = Depends(verify_token_with_bets
     )
 
     return user_payment_history
+
+
+@router.get("/withdrawal_history", response_model=UserWithdrawalHistory)
+async def get_withdrawal_history(current_user: str = Depends(verify_token_with_withdrawals)):
+    withdrawals = current_user.withdrawals
+
+    user_withdrawal_history = UserWithdrawalHistory(
+        withdrawals=[
+            Withdrawal(
+                id=withdrawal.id,
+                user_id=withdrawal.user_id
+            )
+            for withdrawal in withdrawals
+        ]
+    )
+
+    return user_withdrawal_history
 
 
 

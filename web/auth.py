@@ -45,3 +45,25 @@ async def verify_token_with_bets(token: str = Depends(oauth2_scheme)):
             return current_user
 
     raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+
+async def verify_token_with_payments(token: str = Depends(oauth2_scheme)):
+    user_id = await session_redis.get(token)
+    if user_id:
+        user_id = user_id.decode("utf-8")
+        async with get_db() as db:
+            current_user = db.query(User).options(joinedload(User.payments)).filter(User.tg_id == str(user_id)).first()
+            return current_user
+
+    raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+
+async def verify_token_with_withdrawals(token: str = Depends(oauth2_scheme)):
+    user_id = await session_redis.get(token)
+    if user_id:
+        user_id = user_id.decode("utf-8")
+        async with get_db() as db:
+            current_user = db.query(User).options(joinedload(User.withdrawals)).filter(User.tg_id == str(user_id)).first()
+            return current_user
+
+    raise HTTPException(status_code=401, detail="Invalid or expired token")
