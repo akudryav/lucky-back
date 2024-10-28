@@ -9,9 +9,8 @@ from aiogram.types import (
 
 from aiogram.utils.markdown import hbold
 from aiogram.types import Message
-
 from bot.bot import telegram_router, bot
-from app.database import get_db, User
+from app.database import *
 from app.config import settings
 import base64
 from io import BytesIO
@@ -25,7 +24,9 @@ cache_redis = aredis.Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, d
 async def cmd_start(message: Message) -> None:
     async with get_db() as db:
         # Регистрация пользователя
-        user = db.query(User).filter(User.tg_id == message.from_user.id).first()
+        stmt = select(User).where(User.tg_id == message.from_user.id)
+        result = await db.execute(stmt)
+        user = result.scalars().first()
 
         # user_photos = await bot.get_user_profile_photos(user_id=message.from_user.id)
         #
@@ -55,7 +56,7 @@ async def cmd_start(message: Message) -> None:
                 last_name=message.from_user.last_name,
             )
             db.add(new_user)
-            db.commit()
+            await db.commit()
 
         else:
             change = False

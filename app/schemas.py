@@ -13,9 +13,10 @@ class User(BaseModel):
 
 
 class Bet(BaseModel):
-    user_id: int
-    game_id: int
+    id: int
+    gameKey: str
     amount: int
+    coefficient: float
     profit: int
     is_win: bool
 

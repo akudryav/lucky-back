@@ -1,9 +1,10 @@
 import json
 from cgi import print_environ_usage
 from pathlib import Path
-from fastapi import APIRouter, Request, HTTPException, Depends
+from fastapi import APIRouter, Request, HTTPException, Depends, FastAPI
 from fastapi.responses import FileResponse
 from sqlalchemy.sql.functions import current_user
+from fastapi_socketio import SocketManager
 
 from bot.bot import bot
 from web.auth import verify_token, auth_user, verify_token_with_bets, verify_token_with_withdrawals, verify_token_with_payments
@@ -32,11 +33,9 @@ async def auth(request: Request):
 
     raise HTTPException(status_code=401, detail={"ok": False, "err": "Unauthorized"})
 
-
 @router.get("/user", response_model=User)
 async def get_current_user(current_user: User = Depends(verify_token)):
     return current_user
-
 
 @router.get("/bet_history", response_model=UserBetHistory)
 async def get_bet_history(current_user: str = Depends(verify_token_with_bets)):
@@ -45,9 +44,10 @@ async def get_bet_history(current_user: str = Depends(verify_token_with_bets)):
     user_bet_history = UserBetHistory(
         bets=[
             Bet(
-                user_id=bet.user_id,
-                game_id=bet.game_id,
+                id=bet.game_id,
+                gameKey=bet.game.hash,
                 amount=bet.amount,
+                coefficient=bet.game.crash_number,
                 profit=bet.profit,
                 is_win=bet.is_win
             )
@@ -73,7 +73,6 @@ async def get_payment_history(current_user: str = Depends(verify_token_with_paym
 
     return user_payment_history
 
-
 @router.get("/withdrawal_history", response_model=UserWithdrawalHistory)
 async def get_withdrawal_history(current_user: str = Depends(verify_token_with_withdrawals)):
     withdrawals = current_user.withdrawals
@@ -89,41 +88,3 @@ async def get_withdrawal_history(current_user: str = Depends(verify_token_with_w
     )
 
     return user_withdrawal_history
-
-
-
-# @router.post("/demo/sendMessage")
-# async def send_message_handler(request: Request):
-#     data = await request.form()
-#     try:
-#         web_app_init_data = safe_parse_webapp_init_data(token=bot.token, init_data=data["_auth"])
-#     except ValueError:
-#         raise HTTPException(status_code=401, detail={"ok": False, "err": "Unauthorized"})
-#
-#     reply_markup = None
-#     if data["with_webview"] == "1":
-#         reply_markup = InlineKeyboardMarkup(
-#             inline_keyboard=[
-#                 [
-#                     InlineKeyboardButton(
-#                         text="Open",
-#                         web_app=WebAppInfo(
-#                             url=f"{settings.WEBAPP_HOST_URL}{settings.WEBAPP_ROUTE}"
-#                         ),
-#                     )
-#                 ]
-#             ]
-#         )
-#     await bot.answer_web_app_query(
-#         web_app_query_id=web_app_init_data.query_id,
-#         result=InlineQueryResultArticle(
-#             id=web_app_init_data.query_id,
-#             title="Demo",
-#             input_message_content=InputTextMessageContent(
-#                 message_text="Hello, World!",
-#                 parse_mode=None,
-#             ),
-#             reply_markup=reply_markup,
-#         ),
-#     )
-#     return {"ok": True}

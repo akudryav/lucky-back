@@ -7,7 +7,7 @@ from app.config import settings
 from aiogram.types import MenuButtonWebApp, WebAppInfo
 from loguru import logger
 
-from app.app import init_redis
+from app.app import init_redis, engine, Base
 
 async def first_run() -> bool:
     """Check if this is the first run of service. ppid is the parent process id.
@@ -26,6 +26,10 @@ async def config_bot():
     fr = await first_run()
     if fr:
         logger.info("🚀 Configuration....")
+
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
         await bot.set_webhook(
             f"{settings.BOT_HOST_URL}{settings.BOT_ROUTE}",
             secret_token=settings.TELEGRAM_SECURITY_TOKEN,

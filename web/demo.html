@@ -167,7 +167,12 @@
 </head>
 <body style="visibility: hidden;">
 <section>
+    <div id="pingDisplay" class="hint">Ping: Calculating...</div>
     <button id="main_btn" onclick="sendMessage('');">Send «Hello, World!»</button>
+
+    <button onclick="make_bet(1,50);">Сделать ставку 1 (50 поинтов)</button>
+    <button onclick="make_bet(2,50);">Сделать ставку 2 (50 поинтов)</button>
+
     </div>
     <div class="hint">
         Data passed to webview.
@@ -182,6 +187,59 @@
 
     var initData = Telegram.WebApp.initData || '';
     var initDataUnsafe = Telegram.WebApp.initDataUnsafe || {};
+
+        let pingStartTime;
+        let pingInterval;
+
+        function connectWebSocket(token) {
+            const socket = new WebSocket(`./ws?token=${token}`);
+
+            socket.addEventListener('open', function (event) {
+                console.log('WebSocket connection opened');
+                startPing();
+            });
+
+            socket.addEventListener('message', function (event) {
+                console.log('Message from server ', event.data);
+
+                if (event.data === 'pong') {
+                    const pingEndTime = Date.now();
+                    const ping = pingEndTime - pingStartTime;
+                    document.getElementById('pingDisplay').textContent = `Ping: ${ping} ms`;
+                } else {
+                    let messageElement = document.getElementById('latestMessage');
+                    if (!messageElement) {
+                        messageElement = document.createElement('div');
+                        messageElement.id = 'latestMessage';
+                        document.body.appendChild(messageElement);
+                    }
+                    messageElement.textContent = event.data;
+
+                    messageElement.style.textAlign = 'center';
+                    messageElement.style.margin = '0 auto';
+                }
+            });
+
+            socket.addEventListener('close', function (event) {
+                console.log('WebSocket connection closed');
+                clearInterval(pingInterval);
+            });
+
+            socket.addEventListener('error', function (event) {
+                console.error('WebSocket error: ', event);
+            });
+
+            function startPing() {
+                pingInterval = setInterval(() => {
+                    pingStartTime = Date.now();
+                    socket.send('ping');
+                }, 5000);
+            }
+        }
+
+
+
+
 
     function sendMessage(msg_id, with_webview) {
         if (!initDataUnsafe.query_id) {
@@ -203,6 +261,7 @@
                 if (result.response) {
                     if (result.response.ok) {
                         $('#btn_status').html('Message sent successfully!').addClass('ok').show();
+
                     } else {
                         $('#btn_status').text(result.response.description).addClass('err').show();
                         alert(result.response.description);
@@ -235,6 +294,7 @@
                 success: function (result) {
                     if (result.tg_id) {
                         $('#webview_data_status').html('User data retrieved: user_id:' + result.tg_id + ' username: ' + result.username).addClass('ok');
+                        connectWebSocket(authToken);
                     } else {
                         $('#webview_data_status').html(result.error).addClass('err');
                     }
@@ -262,6 +322,7 @@
                             success: function (userResult) {
                                 if (userResult.tg_id) {
                                     $('#webview_data_status').html('User data retrieved: user_id:' + userResult.tg_id + ' username: ' + userResult.username).addClass('ok');
+                                    connectWebSocket(authToken);
                                 } else {
                                     $('#webview_data_status').html(userResult.error).addClass('err');
                                 }

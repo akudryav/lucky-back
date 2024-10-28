@@ -1,16 +1,16 @@
 from logging import DEBUG
-
-from fastapi import FastAPI, Request
+import asyncio
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import engine, Base
 from web.bot_handlers import bot_router
 from web.web_app import router
+from web.socket_handler import ws
 from contextlib import asynccontextmanager
 import redis.asyncio as aredis
 import bot.handlers
-
 from loguru import logger
 
 DEBUG=False
@@ -27,10 +27,8 @@ async def lifespan(application: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 init_redis = aredis.Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=0)
-# session_redis = aredis.Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=1)
-# cache_redis = aredis.Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=2)
 
-origins = ['*']
+origins = ["*"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -38,10 +36,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-Base.metadata.create_all(bind=engine)
-
 app.include_router(bot_router)
-
 app.include_router(router)
+
+app.include_router(ws)
+
+
