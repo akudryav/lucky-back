@@ -10,6 +10,7 @@
     <meta name="HandheldFriendly" content="True"/>
     <meta name="robots" content="noindex,nofollow"/>
     <script src="https://telegram.org/js/telegram-web-app.js?1"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         body {
             font-family: sans-serif;
@@ -170,8 +171,8 @@
     <div id="pingDisplay" class="hint">Ping: Calculating...</div>
     <button id="main_btn" onclick="sendMessage('');">Send «Hello, World!»</button>
 
-    <button onclick="make_bet(1,50);">Сделать ставку 1 (50 поинтов)</button>
-    <button onclick="make_bet(2,50);">Сделать ставку 2 (50 поинтов)</button>
+    <button onclick="make_bet(1,50,null);">Сделать ставку 1 (50 поинтов)</button>
+    <button onclick="make_bet(2,50,null);">Сделать ставку 2 (50 поинтов)</button>
 
     </div>
     <div class="hint">
@@ -183,62 +184,119 @@
 <div class="viewport_stable_border"></div>
 <script src="https://webappcontent.telegram.org/js/jquery.min.js"></script>
 <script>
+    const Toast = Swal.mixin({
+      toast: true,
+      position: "top-end",
+      showConfirmButton: false,
+      timer: 3000,
+      timerProgressBar: true,
+      didOpen: (toast) => {
+        toast.onmouseenter = Swal.stopTimer;
+        toast.onmouseleave = Swal.resumeTimer;
+      }
+    });
+
+
+
     Telegram.WebApp.ready();
+
 
     var initData = Telegram.WebApp.initData || '';
     var initDataUnsafe = Telegram.WebApp.initDataUnsafe || {};
 
-        let pingStartTime;
-        let pingInterval;
+    let pingStartTime;
+    let pingInterval;
+    let socket;
 
-        function connectWebSocket(token) {
-            const socket = new WebSocket(`./ws?token=${token}`);
+    function connectWebSocket(token) {
+        socket = new WebSocket(`./ws?token=${token}`);
 
-            socket.addEventListener('open', function (event) {
-                console.log('WebSocket connection opened');
-                startPing();
-            });
+        socket.addEventListener('open', function (event) {
+            console.log('WebSocket connection opened');
+            startPing();
+        });
 
-            socket.addEventListener('message', function (event) {
-                console.log('Message from server ', event.data);
+        socket.addEventListener('message', function (event) {
+            console.log('Message from server ', event.data);
 
-                if (event.data === 'pong') {
-                    const pingEndTime = Date.now();
-                    const ping = pingEndTime - pingStartTime;
-                    document.getElementById('pingDisplay').textContent = `Ping: ${ping} ms`;
-                } else {
-                    let messageElement = document.getElementById('latestMessage');
-                    if (!messageElement) {
-                        messageElement = document.createElement('div');
-                        messageElement.id = 'latestMessage';
-                        document.body.appendChild(messageElement);
-                    }
-                    messageElement.textContent = event.data;
-
-                    messageElement.style.textAlign = 'center';
-                    messageElement.style.margin = '0 auto';
+            if (event.data === 'pong') {
+                const pingEndTime = Date.now();
+                const ping = pingEndTime - pingStartTime;
+                document.getElementById('pingDisplay').textContent = `Ping: ${ping} ms`;
+            } else {
+                let data;
+                try {
+                    data = JSON.parse(event.data);
+                } catch (e) {
+                    console.error('Error parsing JSON:', e);
+                    return;
                 }
-            });
 
-            socket.addEventListener('close', function (event) {
-                console.log('WebSocket connection closed');
-                clearInterval(pingInterval);
-            });
+                if (data.type === "bet") {
 
-            socket.addEventListener('error', function (event) {
-                console.error('WebSocket error: ', event);
-            });
+                    let icon;
 
-            function startPing() {
-                pingInterval = setInterval(() => {
-                    pingStartTime = Date.now();
-                    socket.send('ping');
-                }, 5000);
+                    if (data.status === true) {
+                        icon = "success";
+                    } else {
+                        icon = "error";
+                    }
+
+                    Toast.fire({
+                        icon: icon,
+                        title: "Signed in successfully"
+                    });
+                }
+
+
+                let messageElement = document.getElementById('latestMessage');
+                if (!messageElement) {
+                    messageElement = document.createElement('div');
+                    messageElement.id = 'latestMessage';
+                    document.body.appendChild(messageElement);
+                }
+                messageElement.textContent = event.data;
+
+                messageElement.style.textAlign = 'center';
+                messageElement.style.margin = '0 auto';
             }
+        });
+
+
+        socket.addEventListener('close', function (event) {
+            console.log('WebSocket connection closed');
+            clearInterval(pingInterval);
+        });
+
+        socket.addEventListener('error', function (event) {
+            console.error('WebSocket error: ', event);
+        });
+
+        function startPing() {
+            pingInterval = setInterval(() => {
+                pingStartTime = Date.now();
+                socket.send('ping');
+            }, 5000);
         }
 
+    }
 
 
+    function make_bet(button_id, amount, autoPickup) {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            const betData = {
+                type: "bet",
+                amount: amount,
+                "auto-pickup": autoPickup,
+                button: button_id
+            };
+
+            socket.send(JSON.stringify(betData));
+            console.log(`Bet made: ${JSON.stringify(betData)}`);
+        } else {
+            console.error('WebSocket is not open. Cannot make bet.');
+        }
+    }
 
 
     function sendMessage(msg_id, with_webview) {

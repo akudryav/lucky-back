@@ -30,6 +30,9 @@ async def verify_token(token: str = Depends(oauth2_scheme)):
     user_id = await session_redis.get(token)
     if user_id:
         user_id = user_id.decode("utf-8")
+
+        await session_redis.expire(token, 1800)
+
         async with get_db() as db:
             stmt = select(User).where(User.tg_id == int(user_id))
             result = await db.execute(stmt)
@@ -43,6 +46,9 @@ async def verify_token_with_bets(token: str = Depends(oauth2_scheme)):
     user_id = await session_redis.get(token)
     if user_id:
         user_id = user_id.decode("utf-8")
+
+        await session_redis.expire(token, 1800)
+
         async with get_db() as db:
             stmt = select(User).options(
                 joinedload(User.bets).joinedload(PlayerBet.game)
@@ -58,6 +64,9 @@ async def verify_token_with_payments(token: str = Depends(oauth2_scheme)):
     user_id = await session_redis.get(token)
     if user_id:
         user_id = user_id.decode("utf-8")
+
+        await session_redis.expire(token, 1800)
+
         async with get_db() as db:
             stmt = select(User).options(
                 joinedload(User.payments)
@@ -73,6 +82,9 @@ async def verify_token_with_withdrawals(token: str = Depends(oauth2_scheme)):
     user_id = await session_redis.get(token)
     if user_id:
         user_id = user_id.decode("utf-8")
+
+        await session_redis.expire(token, 1800)
+
         async with get_db() as db:
             stmt = select(User).options(
                 joinedload(User.withdrawals)
