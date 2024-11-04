@@ -164,24 +164,53 @@
         .viewport_stable_border:after {
             border-color: green;
         }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        th, td {
+            border: 1px solid #504747;
+            padding: 8px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #302525;
+        }
     </style>
 </head>
 <body style="visibility: hidden;">
 <section>
     <div id="pingDisplay" class="hint">Ping: Calculating...</div>
-    <button id="main_btn" onclick="sendMessage('');">Send «Hello, World!»</button>
+    <div id="online_status" class="hint">Online: Loading...</div>
 
-    <button onclick="make_bet(1,50,null);">Сделать ставку 1 (50 поинтов)</button>
-    <button onclick="make_bet(2,50,null);">Сделать ставку 2 (50 поинтов)</button>
+    <button id="1" onclick="make_bet(1,50,null);">Сделать ставку 1 (50 поинтов)</button>
+    <button id="2" onclick="make_bet(2,50,null);">Сделать ставку 2 (50 поинтов)</button>
 
     </div>
     <div class="hint">
         Data passed to webview.
         <span id="webview_data_status" style="display: none;">Checking auth...</span>
     </div>
+
+    <div class="hint">
+        <span id="game_status">Loading...</span>
+    </div>
+    <table id="dataTable">
+        <thead>
+            <tr>
+                <th>Ник</th>
+                <th>Сумма</th>
+                <th>Профит</th>
+                <th>Кэф</th>
+            </tr>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
 </section>
-<div class="viewport_border"></div>
-<div class="viewport_stable_border"></div>
 <script src="https://webappcontent.telegram.org/js/jquery.min.js"></script>
 <script>
     const Toast = Swal.mixin({
@@ -207,6 +236,55 @@
     let pingStartTime;
     let pingInterval;
     let socket;
+    let game_status = document.getElementById('game_status')
+    let online_status = document.getElementById('online_status')
+
+    let bet_button_clicked = false;
+
+    let user_bets = {
+    }
+
+    let status_messages = {
+        'NO_MONEY': 'Недостаточно денег',
+        'GAME_STARTED': 'Игра уже начата, ждите завершения',
+        'DUBLICATED_BET': 'Уже есть такая ставка',
+        'IS_GAME_CRASHED': 'Ракетка упала',
+        'BET_NOT_FOUND': 'Ставка не найдена',
+        'GAME_NOT_STARTED': 'Игра не начата'
+    }
+
+
+    function addRow(nick, amount, profit, coff) {
+        const table = document.getElementById('dataTable').getElementsByTagName('tbody')[0];
+        const newRow = table.insertRow();
+
+        const nickCell = newRow.insertCell(0);
+        const amountCell = newRow.insertCell(1);
+        const profitCell = newRow.insertCell(2);
+        const coffCell = newRow.insertCell(3);
+
+        nickCell.textContent = nick;
+        amountCell.textContent = amount;
+        profitCell.textContent = profit;
+        coffCell.textContent = coff;
+    }
+
+    function clearTable() {
+        const table = document.getElementById('dataTable').getElementsByTagName('tbody')[0];
+        table.innerHTML = ''; // Clear all rows
+    }
+
+    function changeOnClick(buttonId, amount) {
+        const button = document.getElementById(buttonId);
+        button.textContent = 'Отменить ставку';
+        button.onclick = function() {
+            cancel_bet(buttonId);
+        };
+        user_bets[buttonId] = {
+            button: button,
+            amount: amount
+        }
+    }
 
     function connectWebSocket(token) {
         socket = new WebSocket(`./ws?token=${token}`);
@@ -235,30 +313,57 @@
                 if (data.type === "bet") {
 
                     let icon;
+                    let title;
 
                     if (data.status === true) {
                         icon = "success";
+                        title = "Успешная ставка"
                     } else {
                         icon = "error";
+                        title = status_messages[data.message]
                     }
 
-                    Toast.fire({
+                    if (bet_button_clicked == true){
+                        Toast.fire({
                         icon: icon,
-                        title: "Signed in successfully"
+                        title: title
                     });
+                    }
+
+                    changeOnClick(data.button_id, data.amount);
+
+
+
+                } else if (data.type === 'online'){
+                    online_status.textContent = `Online: ${data.count}`;
+                } else if (data.type === 'player_bet'){
+                    addRow(data.user, data.amount);
+                } else if (data.type === 'game_end'){
+                    clearTable()
+                } else if (data.type === 'play_game'){
+
+                    // Проверка на наличие ставок
+                    if (Object.keys(user_bets).length > 0) {
+                        Object.entries(user_bets).forEach(([key, value]) => {
+                            button_id = key;
+                            button = value.button;
+                            amount = value.amount;
+
+                            let profit = amount * data.c;
+                            let roundedprofit = profit.toFixed(2);
+
+                            button.textContent = 'Забрать: ' + roundedprofit
+                            button.onclick = function() {
+                                pickup_bet(button_id);
+                            };
+                        });
+                    }
+
                 }
 
 
-                let messageElement = document.getElementById('latestMessage');
-                if (!messageElement) {
-                    messageElement = document.createElement('div');
-                    messageElement.id = 'latestMessage';
-                    document.body.appendChild(messageElement);
-                }
-                messageElement.textContent = event.data;
 
-                messageElement.style.textAlign = 'center';
-                messageElement.style.margin = '0 auto';
+                game_status.textContent = event.data;
             }
         });
 
@@ -287,56 +392,52 @@
             const betData = {
                 type: "bet",
                 amount: amount,
-                "auto-pickup": autoPickup,
-                button: button_id
+                auto_pickup: autoPickup,
+                button_id: button_id
             };
 
             socket.send(JSON.stringify(betData));
-            console.log(`Bet made: ${JSON.stringify(betData)}`);
+            bet_button_clicked = true;
         } else {
-            console.error('WebSocket is not open. Cannot make bet.');
+            Toast.fire({
+                icon: 'error',
+                title: 'Ошибка подключения'
+            });
+        }
+    }
+
+    function pickup_bet(button_id) {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            const betData = {
+                type: "pickup",
+                button_id: button_id
+            };
+
+            socket.send(JSON.stringify(betData));
+        } else {
+            Toast.fire({
+                icon: 'error',
+                title: 'Ошибка подключения'
+            });
         }
     }
 
 
-    function sendMessage(msg_id, with_webview) {
-        if (!initDataUnsafe.query_id) {
-            alert('WebViewQueryId not defined');
-            return;
+    function cancel_bet(button_id) {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            const betData = {
+                type: "cancel",
+                button_id: button_id
+            };
+
+            socket.send(JSON.stringify(betData));
+        } else {
+            Toast.fire({
+                icon: 'error',
+                title: 'Ошибка подключения'
+            });
         }
-        $('button').prop('disabled', true);
-        $('#btn_status').text('Sending...').removeClass('ok err').show();
-        $.ajax('/demo/sendMessage', {
-            type: 'POST',
-            data: {
-                _auth: initData,
-                msg_id: msg_id || '',
-                with_webview: !initDataUnsafe.receiver && with_webview ? 1 : 0
-            },
-            dataType: 'json',
-            success: function (result) {
-                $('button').prop('disabled', false);
-                if (result.response) {
-                    if (result.response.ok) {
-                        $('#btn_status').html('Message sent successfully!').addClass('ok').show();
-
-                    } else {
-                        $('#btn_status').text(result.response.description).addClass('err').show();
-                        alert(result.response.description);
-                    }
-                } else {
-                    $('#btn_status').text('Unknown error').addClass('err').show();
-                    alert('Unknown error');
-                }
-            },
-            error: function (xhr) {
-                $('button').prop('disabled', false);
-                $('#btn_status').text('Server error').addClass('err').show();
-                alert('Server error');
-            }
-        });
     }
-
 
 
     if (initDataUnsafe.query_id && initData) {

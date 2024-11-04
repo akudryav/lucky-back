@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     REDIS_HOST: str
     REDIS_PORT: str
 
+    SERVER_SALT: str
+
+    ONLINE_FIX: int
+
     class Config:
         env_file = os.path.join(os.path.dirname(__file__), '../.env')
 
