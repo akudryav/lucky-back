@@ -186,8 +186,8 @@
     <div id="pingDisplay" class="hint">Ping: Calculating...</div>
     <div id="online_status" class="hint">Online: Loading...</div>
 
-    <button id="1" onclick="make_bet(1,50,null);">Сделать ставку 1 (50 поинтов)</button>
-    <button id="2" onclick="make_bet(2,50,null);">Сделать ставку 2 (50 поинтов)</button>
+    <button id="1" onclick="make_bet(1,50,null);">Сделать ставку</button>
+    <button id="2" onclick="make_bet(2,50,null);">Сделать ставку</button>
 
     </div>
     <div class="hint">
@@ -250,7 +250,7 @@
         'DUBLICATED_BET': 'Уже есть такая ставка',
         'IS_GAME_CRASHED': 'Ракетка упала',
         'BET_NOT_FOUND': 'Ставка не найдена',
-        'GAME_NOT_STARTED': 'Игра не начата'
+        'IS_BET_ENDED': 'Игра завершенна',
     }
 
 
@@ -274,7 +274,7 @@
         table.innerHTML = ''; // Clear all rows
     }
 
-    function changeOnClick(buttonId, amount) {
+    function changeOnClickCancel(buttonId, amount) {
         const button = document.getElementById(buttonId);
         button.textContent = 'Отменить ставку';
         button.onclick = function() {
@@ -284,6 +284,15 @@
             button: button,
             amount: amount
         }
+    }
+
+    function changeOnClickDefault(buttonId) {
+        const button = document.getElementById(buttonId);
+        button.textContent = 'Сделать ставку';
+        button.onclick = function() {
+            make_bet(1,50,null);
+        };
+        delete user_bets[buttonId];
     }
 
     function connectWebSocket(token) {
@@ -330,7 +339,7 @@
                     });
                     }
 
-                    changeOnClick(data.button_id, data.amount);
+                    changeOnClickCancel(data.button_id, data.amount);
 
 
 
@@ -340,6 +349,8 @@
                     addRow(data.user, data.amount);
                 } else if (data.type === 'game_end'){
                     clearTable()
+                    changeOnClickDefault('1');
+                    changeOnClickDefault('2');
                 } else if (data.type === 'play_game'){
 
                     // Проверка на наличие ставок
@@ -359,9 +370,22 @@
                         });
                     }
 
+                } else if (data.type === 'pickup') {
+
+                    if (data.status === true) {
+                        icon = "success";
+                        title = "Победа! Ваш профит: " + data.profit + ' кэф: ' +  data.cof;
+                    } else {
+                        icon = "error";
+                        title = status_messages[data.message]
+                    }
+                    Toast.fire({
+                        icon: icon,
+                        title: title
+                    });
+
+                    changeOnClickDefault(data.button_id);
                 }
-
-
 
                 game_status.textContent = event.data;
             }

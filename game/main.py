@@ -84,6 +84,28 @@ async def publish_to_channel(croupier: Croupier):
             if croupier.kaf_now >= end_kaf:
                 croupier.is_started = False
                 croupier.game_crashed = True
+
+                # Краш. Делаем луз всем
+                async with get_db() as db:
+                    stmt = select(PlayerBet).options(
+                        joinedload(PlayerBet.user)
+                    ).where(PlayerBet.game_id == int(croupier.game_id), PlayerBet.is_win == None)
+                    result = await db.execute(stmt)
+
+                    bets = result.scalars().all()
+
+                    for bet in bets:
+                        bet.profit = 0
+                        bet.is_win = False
+                        bet.coff = 0
+
+                        # Личный алерт юзеру
+
+                        # Глобальное уведомление краше
+
+
+                    await db.commit()
+
                 await session_redis.publish(channel_name, f'0:{{"type": "game_end", "game_id": "{croupier.game_id}", "end_c": "{end_kaf}" }}')
                 break
             else:
@@ -193,17 +215,19 @@ async def handler_clients(croupier: Croupier):
                                     response = f'{user_id}:{{"type": "player_bet", "user_id": "{bet.user_id}", "user": "{full_username}", "amount": {bet.amount} }}'
                                     await session_redis.publish(user_channel_name, response)
 
-                                #Возврат ставок юзера
+                                #Возврат активных ставок юзера
                                 stmt = select(Game).options(
                                     joinedload(Game.bets).joinedload(PlayerBet.user)
-                                ).where(Game.id == int(croupier.game_id), PlayerBet.user_id == user_id)
+                                ).where(Game.id == int(croupier.game_id), PlayerBet.user_id == user_id, PlayerBet.is_win == None)
                                 result = await db.execute(stmt)
 
-                                current_game = result.scalars().first()
-                                for bet in current_game.bets:
-                                    response = (f'{current_user.tg_id}:{{"type": "bet","status": true, "bet_id": "{bet.id}", "amount": "{bet.amount}", '
-                                                f'"button_id": "{bet.button_id}", "auto_pickup": "0", "new_balance": "{bet.user.balance}" }}')
-                                    await session_redis.publish(user_channel_name, response)
+                                user_bets = result.scalars().first()
+                                if user_bets:
+                                    for user_bet in user_bets.bets:
+
+                                        response = (f'{current_user.tg_id}:{{"type": "bet","status": true, "bet_id": "{user_bet.id}", "amount": "{user_bet.amount}", '
+                                                    f'"button_id": "{user_bet.button_id}", "auto_pickup": "0", "new_balance": "{user_bet.user.balance}" }}')
+                                        await session_redis.publish(user_channel_name, response)
 
                                 # возврат текущей игры
                                 response = f'{user_id}:{{"type": "game", "game_id": "{croupier.game_id}"}}'
@@ -248,33 +272,40 @@ async def handler_clients(croupier: Croupier):
 
                                     user_bet = result.scalars().first()
                                     if user_bet:
+                                        if user_bet.is_win is not None:
+                                            response = f'{user_id}:{{"type": "pickup", "status": false, "button_id": "{button_id}", "message": "IS_BET_ENDED"}}'
+                                            await session_redis.publish(user_channel_name, response)
+                                            continue
+
                                         if croupier.game_crashed:
-                                            response = f'{user_id}:{{"type": "pickup", "status": "false", "message": "IS_GAME_CRASHED"}}'
+                                            response = f'{user_id}:{{"type": "pickup", "status": false, "button_id": "{button_id}", "message": "IS_GAME_CRASHED"}}'
                                             await session_redis.publish(user_channel_name, response)
                                             continue
                                         else:
-                                            current_coff = croupier.kaf_now
-                                            profit = user_bet.amount * current_coff
+                                            current_cof = croupier.kaf_now
+
+                                            profit = user_bet.amount * current_cof
+                                            profit = round(profit, 2)
 
                                             # Ставим победу, профит, кэф, прибавляем баланс
                                             user_bet.is_win = True
                                             user_bet.profit = profit
-                                            user_bet.coff = current_coff
+                                            user_bet.coff = current_cof
                                             user_bet.user.balance += profit
 
                                             await db.commit()
                                             await db.refresh(user_bet)
 
-                                            response = f'{user_id}:{{"type": "pickup", "status": "true", "profit": "{profit}", "bet_id": "{user_bet.id}", "button_id": "{user_bet.button_id}", "cof": "{current_coff}"}}'
+                                            response = f'{user_id}:{{"type": "pickup", "status": true, "profit": "{profit}", "bet_id": "{user_bet.id}", "button_id": "{user_bet.button_id}", "cof": "{current_cof}"}}'
                                             await session_redis.publish(user_channel_name, response)
                                             continue
 
                                     else:
-                                        response = f'{user_id}:{{"type": "pickup", "status": "false", "message": "BET_NOT_FOUND"}}'
+                                        response = f'{user_id}:{{"type": "pickup", "status": false, "button_id": "{button_id}", "message": "BET_NOT_FOUND"}}'
                                         await session_redis.publish(user_channel_name, response)
                                         continue
                                 else:
-                                    response = f'{user_id}:{{"type": "pickup", "status": "false", "message": "GAME_NOT_STARTED"}}'
+                                    response = f'{user_id}:{{"type": "pickup", "status": false, "button_id": "{button_id}", "message": "GAME_NOT_STARTED"}}'
                                     await session_redis.publish(user_channel_name, response)
                                     continue
 
